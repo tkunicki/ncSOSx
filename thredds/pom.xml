@@ -1,4 +1,4 @@
-
+<?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 	
@@ -35,12 +35,31 @@
                 <configuration>
                     <source>1.6</source>
                     <target>1.6</target>
+                    <encoding>${project.build.sourceEncoding}</encoding>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-resources-plugin</artifactId>
+                <version>2.4.3</version>
+                <configuration>
+                    <encoding>${project.build.sourceEncoding}</encoding>
                 </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-war-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>exploded</goal>
+                        </goals>
+                    </execution>
+                </executions>
                 <configuration>
+                    <dependentWarExcludes>WEB-INF/web.xml</dependentWarExcludes>
+                    <warSourceExcludes>WEB-INF/web.xml</warSourceExcludes>
                     <overlays>
                         <overlay>
                             <groupId>edu.ucar</groupId>
@@ -49,9 +68,44 @@
                     </overlays>
                 </configuration>
             </plugin>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>xml-maven-plugin</artifactId>
+                <version>1.0</version>
+                <executions>
+                    <execution>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>transform</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <transformationSets>
+                        <transformationSet>
+                            <dir>target/war/work/edu.ucar/tds/WEB-INF</dir>
+                            <includes>
+                                <include>web.xml</include>
+                            </includes>
+                            <stylesheet>src/main/xsl/merge.xsl</stylesheet>
+                            <parameters>
+                                <parameter>
+                                    <name>includeFile</name>
+                                    <value>${basedir}/src/main/webapp/WEB-INF/web.xml</value>
+                                </parameter>
+                            </parameters>
+                            <outputDir>target/${project.build.finalName}/WEB-INF</outputDir>
+                        </transformationSet>
+                    </transformationSets>
+                </configuration>
+                <dependencies>
+                    <dependency>
+                        <groupId>net.sf.saxon</groupId>
+                        <artifactId>saxon</artifactId>
+                        <version>8.7</version>
+                    </dependency>
+                </dependencies>
+            </plugin>
         </plugins>
     </build>
-    <properties>
-        <netbeans.hint.deploy.server>Tomcat</netbeans.hint.deploy.server>
-    </properties>
 </project>
