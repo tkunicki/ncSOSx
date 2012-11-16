@@ -16,7 +16,7 @@
     
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <thredds.version>4.3.11</thredds.version>
+        <thredds.version>4.3.13</thredds.version>
     </properties>
 
     <repositories>
