@@ -24,6 +24,12 @@
             <artifactId>ncsosx</artifactId>
             <version>${project.version}</version>
         </dependency>
+		<dependency>
+			<groupId>net.sf.saxon</groupId>
+			<artifactId>saxon-dom</artifactId>
+			<version>8.7</version>
+			<scope>runtime</scope>
+		</dependency>
     </dependencies>
     <build>
         <finalName>thredds</finalName>
