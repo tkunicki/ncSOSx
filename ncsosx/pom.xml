@@ -10,7 +10,7 @@
     <artifactId>ncsosx</artifactId>
     <packaging>jar</packaging>
     
-    <name>ncsosx</name>
+    <name>ncSOSx Library</name>
     
     <repositories>
         <repository>

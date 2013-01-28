@@ -7,7 +7,7 @@
     <packaging>pom</packaging>
     <version>1-SNAPSHOT</version>
     
-    <name>ncsosx-parent</name>
+    <name>ncSOSx</name>
     
     <modules>
         <module>ncsosx</module>
