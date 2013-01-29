@@ -1,17 +1,28 @@
 package thredds.server.sos.service;
 
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
+import java.io.Reader;
 import java.io.Writer;
 import java.net.URLDecoder;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import java.util.Collections;
+import java.util.Map;
+import java.util.WeakHashMap;
+import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.transform.Result;
 import javax.xml.transform.Transformer;
 import javax.xml.transform.TransformerException;
 import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
+import org.apache.commons.io.IOUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.w3c.dom.Document;
+import org.xml.sax.SAXException;
 import thredds.server.sos.util.XMLDomUtils;
 import ucar.nc2.dataset.NetcdfDataset;
 
@@ -23,9 +34,8 @@ import ucar.nc2.dataset.NetcdfDataset;
  */
 public class MetadataParser {
 
-//    private static final Logger _log = Logger.getLogger(MetadataParser.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(MetadataParser.class);
     
-    // TODO :  STATIC Variables!   BAD
     private String service;
     private String version;
     private String request;
@@ -66,15 +76,7 @@ public class MetadataParser {
                 if ((service != null) && (request != null) && (version != null)) {
                     //get caps
                     if (request.equalsIgnoreCase("GetCapabilities")) {
-                        SOSGetCapabilitiesRequestHandler handler = new SOSGetCapabilitiesRequestHandler(
-                                dataset,
-                                threddsURI);
-                        handler.parseServiceIdentification();
-                        handler.parseServiceDescription();
-                        handler.parseOperationsMetaData();
-                        handler.parseObservationList();
-                        writeDocument(handler.getDocument(), writer);
-                        handler.finished();
+                        handleGetCapabilities(dataset, threddsURI, writer);
                     } else if (request.equalsIgnoreCase("DescribeSensor")) {
                         writeErrorXMLCode(writer);
                     } else if (request.equalsIgnoreCase("GetObservation")) {
@@ -95,24 +97,13 @@ public class MetadataParser {
                     writeErrorXMLCode(writer);
                 }
             } else if (query == null) {
-                //if the entry is null just print out the get caps xml
-//                _log.info("Null query string/params: using get caps");
-                SOSGetCapabilitiesRequestHandler handler = new SOSGetCapabilitiesRequestHandler(
-                                dataset,
-                                threddsURI);
-                        handler.parseTemplateXML();
-                        handler.parseServiceIdentification();
-                        handler.parseServiceDescription();
-                        handler.parseOperationsMetaData();
-                        handler.parseObservationList();
-                        writeDocument(handler.getDocument(), writer);
-                        handler.finished();
+                LOGGER.info("Empty SOS query, assuming GetCapabilities");
+                handleGetCapabilities(dataset, threddsURI, writer);
             }
 
             //catch
         } catch (Exception e) {
-//            _log.error(e);
-            Logger.getLogger(MetadataParser.class.getName()).log(Level.SEVERE, null, e);
+            LOGGER.error("Exception handling SOS request: " + e.getMessage(), e);
         }
     }
     
@@ -168,6 +159,62 @@ public class MetadataParser {
 
                 }
             }
+        }
+    }
+    
+
+    private final Map<File, Object> fileLockMap = Collections.synchronizedMap(new WeakHashMap<File, Object>());
+    private void handleGetCapabilities(NetcdfDataset dataset, String tdsURI, Writer outputWriter) throws IOException, TransformerException, ParserConfigurationException, SAXException {
+        
+        String ncPath = dataset.getLocation();
+        File ncFile = new File(ncPath);
+        File ncCacheDirectory = new File(ncFile.getParentFile(), ".ncsosx.cache");
+      
+        File gcFile = new File(ncCacheDirectory, ncFile.getName() + ".sos.1.capabilities.xml");
+        
+        Object gcFileLock;
+        synchronized (fileLockMap) {
+            gcFileLock = fileLockMap.get(gcFile);
+            if (gcFileLock == null) {
+                gcFileLock = new Object();
+                fileLockMap.put(gcFile, gcFileLock);
+            }
+        }
+        
+        synchronized(gcFileLock) {
+            if (!(ncFile.lastModified() < gcFile.lastModified())) {
+                if (!ncCacheDirectory.exists()) {
+                    ncCacheDirectory.mkdirs();
+                    LOGGER.info("Generated SOS cache directory: " + ncCacheDirectory);
+                }  
+                SOSGetCapabilitiesRequestHandler handler =
+                        new SOSGetCapabilitiesRequestHandler(dataset, tdsURI);
+                handler.parseTemplateXML();
+                handler.parseServiceIdentification();
+                handler.parseServiceDescription();
+                handler.parseOperationsMetaData();
+                handler.parseObservationList();
+                Writer cacheWriter = new BufferedWriter(new FileWriter(gcFile));
+                try {
+                    writeDocument(handler.getDocument(), cacheWriter);
+                } finally {
+                    IOUtils.closeQuietly(cacheWriter);
+                    if (handler != null) {
+                        handler.finished();
+                    }
+                }
+                LOGGER.info("Generated cached GetCapabilities for {}" + ncPath);
+            } else {
+                LOGGER.info("Using cached GetCapabilities for {}" + ncPath);
+            }
+        }
+        // TODO:  above code should generate cached document with TDS endpoint as
+        // key then search/replace output with actual value used for request.
+        Reader cacheReader = new FileReader(gcFile);
+        try {
+            IOUtils.copy(cacheReader, outputWriter);
+        } finally {
+            IOUtils.closeQuietly(cacheReader);
         }
     }
 
