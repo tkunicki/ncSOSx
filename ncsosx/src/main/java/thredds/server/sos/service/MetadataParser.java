@@ -11,18 +11,17 @@ import java.net.URLDecoder;
 import java.util.Collections;
 import java.util.Map;
 import java.util.WeakHashMap;
-import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.transform.Result;
 import javax.xml.transform.Transformer;
 import javax.xml.transform.TransformerException;
 import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Document;
-import org.xml.sax.SAXException;
 import thredds.server.sos.util.XMLDomUtils;
 import ucar.nc2.dataset.NetcdfDataset;
 
@@ -164,7 +163,7 @@ public class MetadataParser {
     
 
     private final Map<File, Object> fileLockMap = Collections.synchronizedMap(new WeakHashMap<File, Object>());
-    private void handleGetCapabilities(NetcdfDataset dataset, String tdsURI, Writer outputWriter) throws IOException, TransformerException, ParserConfigurationException, SAXException {
+    private void handleGetCapabilities(NetcdfDataset dataset, String tdsURI, Writer outputWriter) throws IOException, TransformerException  {
         
         String ncPath = dataset.getLocation();
         File ncFile = new File(ncPath);
@@ -186,7 +185,7 @@ public class MetadataParser {
                 if (!ncCacheDirectory.exists()) {
                     ncCacheDirectory.mkdirs();
                     LOGGER.info("Generated SOS cache directory: " + ncCacheDirectory);
-                }  
+                }
                 SOSGetCapabilitiesRequestHandler handler =
                         new SOSGetCapabilitiesRequestHandler(dataset, tdsURI);
                 handler.parseTemplateXML();
@@ -197,13 +196,21 @@ public class MetadataParser {
                 Writer cacheWriter = new BufferedWriter(new FileWriter(gcFile));
                 try {
                     writeDocument(handler.getDocument(), cacheWriter);
-                } finally {
                     IOUtils.closeQuietly(cacheWriter);
+                    LOGGER.info("Generated cached GetCapabilities for {}" + ncPath);
+                } catch (IOException e) {
+                    IOUtils.closeQuietly(cacheWriter);
+                    FileUtils.deleteQuietly(gcFile);
+                    throw e;
+                } catch (TransformerException e) {
+                    IOUtils.closeQuietly(cacheWriter);
+                    FileUtils.deleteQuietly(gcFile);
+                    throw e;
+                } finally {
                     if (handler != null) {
                         handler.finished();
                     }
                 }
-                LOGGER.info("Generated cached GetCapabilities for {}" + ncPath);
             } else {
                 LOGGER.info("Using cached GetCapabilities for {}" + ncPath);
             }
